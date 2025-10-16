@@ -1,33 +1,4 @@
 // storage.js — LocalStorage + snapshot bulanan
-st.stocks[id] = s;
-_save(st);
-}
-
-
-export function setLastMonth(id, pcs) {
-const st = _state();
-const s = st.stocks[id] || { lastMonth:0, currentWeight:0, currentCount:0, updatedAt:null };
-s.lastMonth = Math.floor(+pcs || 0);
-st.stocks[id] = s;
-_save(st);
-}
-
-
-export function closeMonth(ym) {
-const st = _state();
-const snap = {};
-for (const id of Object.keys(st.items)) {
-const it = st.items[id];
-const s = st.stocks[id] || {};
-const { currentWeight=0, currentCount=0 } = s;
-const mode = it.mode || 'weight';
-const pcs = mode==='count' && currentCount ? currentCount : (it.unitWeight>0?Math.floor((+currentWeight||0)/it.unitWeight):0);
-snap[id] = pcs;
-// jadikan stok bulan lalu untuk periode berikutnya
-st.stocks[id] = { ...s, lastMonth: pcs };
-}
-st.snapshots[ym] = snap;
-_save(st);
 return snap;
 }
 
