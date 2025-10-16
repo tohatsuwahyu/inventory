@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventory Control — QR + CSV</title>
+  <!-- Tailwind CDN untuk styling cepat -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/print.css" media="print" />
+  <!-- Icon -->
+  <link rel="icon" href="assets/logo.svg" />
+  <!-- QR Scanner lib -->
+  <script defer src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <!-- Topbar -->
+  <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="assets/logo.svg" alt="logo" class="w-8 h-8" onerror="this.style.display='none'" />
+        <h1 class="text-lg md:text-xl font-semibold">Inventory Control</h1>
+      </div>
+      <nav class="flex gap-2">
+        <button id="btn-scan" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Scan QR</button>
+        <button id="btn-add" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Tambah Item</button>
+        <button id="btn-import" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Import CSV</button>
+        <button id="btn-export" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Export CSV</button>
+        <button id="btn-close-month" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Tutup Bulan</button>
+        <button onclick="window.print()" class="px-3 py-2 rounded-xl border hover:bg-slate-100">Print</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-7xl mx-auto p-4">
+    <!-- Filters -->
+    <section class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <input id="search" type="search" placeholder="Cari nama / ID..." class="px-3 py-2 rounded-xl border" />
+      <select id="view-month" class="px-3 py-2 rounded-xl border">
+        <option value="current">Tampilkan: Bulan Berjalan</option>
+        <option value="last">Tampilkan: Stok Bulan Lalu</option>
+      </select>
+      <div class="flex items-center gap-2">
+        <label class="text-sm">Mode input:</label>
+        <select id="input-mode" class="px-3 py-2 rounded-xl border">
+          <option value="auto">Auto (berdasar item)</option>
+          <option value="weight">Berat</option>
+          <option value="count">PCS</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="items-table">
+          <thead class="bg-slate-100 text-slate-700">
+            <tr>
+              <th class="px-3 py-2 text-left">QR/ID</th>
+              <th class="px-3 py-2 text-left">Nama</th>
+              <th class="px-3 py-2 text-right">Berat/pcs (g)</th>
+              <th class="px-3 py-2 text-right">Stok Bulan Lalu</th>
+              <th class="px-3 py-2 text-right">Input Berat Total (g)</th>
+              <th class="px-3 py-2 text-right">Input PCS</th>
+              <th class="px-3 py-2 text-right">Stok Baru (pcs)</th>
+              <th class="px-3 py-2 text-right">Δ (pcs)</th>
+              <th class="px-3 py-2">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="items-body"></tbody>
+        </table>
+      </div>
+      <div class="p-3 text-xs text-slate-500">Tip: Isi salah satu—berat total <em>atau</em> PCS. Sistem akan hitung otomatis.</div>
+    </section>
+  </main>
+
+  <!-- Modals -->
+  <div id="modal-scan" class="hidden fixed inset-0 bg-black/40 grid place-items-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-4 shadow-xl">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Scan QR</h2>
+        <button class="px-2 py-1 rounded-lg border" data-close>✕</button>
+      </div>
+      <div id="qr-reader" class="rounded-xl overflow-hidden border"></div>
+      <div id="qr-reader-results" class="mt-2 text-sm text-slate-600"></div>
+    </div>
+  </div>
+
+  <div id="modal-item" class="hidden fixed inset-0 bg-black/40 grid place-items-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-4 shadow-xl">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Tambah / Edit Item</h2>
+        <button class="px-2 py-1 rounded-lg border" data-close>✕</button>
+      </div>
+      <form id="item-form" class="grid gap-2">
+        <label class="grid">
+          <span class="text-sm">QR/Item ID</span>
+          <input name="id" required class="px-3 py-2 rounded-xl border" placeholder="contoh: BT-M6-20" />
+        </label>
+        <label class="grid">
+          <span class="text-sm">Nama</span>
+          <input name="name" required class="px-3 py-2 rounded-xl border" placeholder="Baut M6 x 20" />
+        </label>
+        <label class="grid">
+          <span class="text-sm">Berat per pcs (gram)</span>
+          <input name="unitWeight" type="number" step="0.01" min="0" required class="px-3 py-2 rounded-xl border" />
+        </label>
+        <label class="grid">
+          <span class="text-sm">Default mode per item</span>
+          <select name="mode" class="px-3 py-2 rounded-xl border">
+            <option value="weight">Weight → pcs</option>
+            <option value="count">Direct pcs</option>
+          </select>
+        </label>
+        <div class="flex gap-2 justify-end mt-2">
+          <button type="button" class="px-3 py-2 rounded-xl border" data-close>Batal</button>
+          <button class="px-3 py-2 rounded-xl bg-slate-900 text-white">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
+
+
+
