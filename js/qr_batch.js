@@ -1,10 +1,9 @@
-import { fetchAll, fetchQrPngBase64 } from './sheets.js';
+import { fetchAll, getQr } from './sheets.js';
 
 const modal   = document.getElementById('modal-qr');
 const btnOpen = document.getElementById('btn-qr-batch');
 const preview = document.getElementById('qr-preview');
 const sizeEl  = document.getElementById('qr-size');
-const marginEl= document.getElementById('qr-margin'); // tidak dipakai, disimpan untuk UI
 const labelEl = document.getElementById('qr-label');
 const baseEl  = document.getElementById('qr-base');
 
@@ -28,23 +27,30 @@ document.getElementById('btn-qr-gen').onclick = async ()=>{
   catch(e){ alert('シート読み込み失敗: ' + e.message); return; }
 
   const list = (data.inventory||[]).filter(x=>x.id);
+
   for (const it of list){
-    let b64;
+    let qr;
     try{
-      b64 = await fetchQrPngBase64({ id: it.id, base, size });
+      qr = await getQr({ id: it.id, base, size });
     }catch(e){
       alert(`QR生成失敗 (${it.id}): ` + e.message);
       continue;
     }
-    const blob = b64ToBlob(b64);
-    const url  = URL.createObjectURL(blob);
 
     const wrap = document.createElement('div');
     wrap.className = 'p-2 border rounded-xl grid place-items-center';
+
     const img = new Image();
-    img.src = url;
+    if (qr.kind === 'b64') {
+      img.src = 'data:image/png;base64,' + qr.data;
+      img.dataset.b64 = qr.data;
+      img.dataset.filename = `${sanitizeName(it.id)}.png`;
+    } else {
+      img.src = qr.data; // URL Google Chart
+      img.dataset.b64 = ''; // tidak ada
+      img.dataset.filename = `${sanitizeName(it.id)}.png`;
+    }
     img.width = size; img.height = size;
-    img.dataset.filename = `${sanitizeName(it.id)}.png`;
     wrap.appendChild(img);
 
     if (withLabel) {
@@ -53,9 +59,6 @@ document.getElementById('btn-qr-gen').onclick = async ()=>{
       label.textContent = `${it.name || it.id} / ${it.id}`;
       wrap.appendChild(label);
     }
-
-    // simpan blob untuk ZIP
-    img.dataset.b64 = b64;
     preview.appendChild(wrap);
   }
 };
@@ -63,10 +66,17 @@ document.getElementById('btn-qr-gen').onclick = async ()=>{
 document.getElementById('btn-qr-zip').onclick = async ()=>{
   const imgs = [...preview.querySelectorAll('img')];
   if (!imgs.length) return alert('先に生成してください。');
+
+  // Cek apakah semua base64 tersedia
+  const allB64 = imgs.every(im => im.dataset.b64);
+  if (!allB64) {
+    alert('ZIPはベース64が必要です。Apps Script で「authorizeFetch」を一度実行して権限を付与してください。その後再度 生成 を押すとZIP可能になります。');
+    return;
+  }
+
   const zip = new JSZip();
   for (const im of imgs){
-    const b64 = im.dataset.b64;
-    zip.file(im.dataset.filename || 'qr.png', b64, { base64:true });
+    zip.file(im.dataset.filename || 'qr.png', im.dataset.b64, { base64:true });
   }
   const blob = await zip.generateAsync({ type:'blob' });
   saveAs(blob, 'qr_labels.zip');
@@ -78,7 +88,7 @@ document.getElementById('btn-qr-print').onclick = ()=>{
   const w = window.open('', '_blank');
   const items = imgs.map(im =>
     `<div style="page-break-inside:avoid;display:inline-block;margin:10px;text-align:center">
-       <img src="data:image/png;base64,${im.dataset.b64}" width="${im.width}" height="${im.height}" />
+       <img src="${im.dataset.b64 ? 'data:image/png;base64,'+im.dataset.b64 : im.src}" width="${im.width}" height="${im.height}" />
        <div style="font-size:10px">${im.nextSibling?.textContent || ''}</div>
      </div>`
   ).join('');
