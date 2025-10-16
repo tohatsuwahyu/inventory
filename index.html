@@ -8,11 +8,14 @@
   <link rel="stylesheet" href="assets/styles.css">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#0f2342">
-
-  <!-- 軽量QRスキャナ（ブラウザ許可が必要） -->
+  <!-- 軽量QRスキャナ -->
   <script defer src="https://unpkg.com/html5-qrcode"></script>
+  <!-- ZIP / 保存（QR出力向け） -->
+  <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
 <body>
+  <!-- Topbar -->
   <header class="topbar" id="topbar">
     <button class="icon-btn -ghost" id="btnSidebar" aria-label="メニュー">
       <svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -26,6 +29,7 @@
     </nav>
   </header>
 
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <nav class="nav">
       <div class="nav-section">
@@ -57,6 +61,7 @@
     </nav>
   </aside>
 
+  <!-- Main -->
   <main class="content" id="content" tabindex="-1">
     <!-- Dashboard -->
     <section class="page -active" id="dashboard" data-page>
@@ -117,9 +122,9 @@
 
     <!-- Add item -->
     <section class="page" id="item-add" data-page>
-      <h1 class="page-title">品名を追加</h1>
+      <h1 class="page-title">品目を追加</h1>
       <form class="card form-grid" id="form-add">
-        <label>品名ID<input class="input" name="id" required></label>
+        <label>品目ID<input class="input" name="id" required></label>
         <label>名称<input class="input" name="name"></label>
         <label>重量/個 (g)<input class="input" name="unitWeight_g" inputmode="decimal"></label>
         <label>計数モード<select class="select" name="mode"><option value="weight">重量</option><option value="count">個数</option></select></label>
@@ -128,20 +133,65 @@
       </form>
     </section>
 
-    <!-- simple sections -->
+    <!-- CSV/Sync/QR Batch/Close/Print/Settings -->
     <section class="page" id="csv-import" data-page><h1 class="page-title">CSV取込</h1><div class="card"><input class="input" type="file" accept=".csv" id="csvIn"><button class="btn -primary" id="btnCsvIn">取込</button></div></section>
     <section class="page" id="csv-export" data-page><h1 class="page-title">CSV出力</h1><div class="card"><button class="btn -primary" id="btnCsvOut">ダウンロード</button></div></section>
     <section class="page" id="sync" data-page><h1 class="page-title">シート同期</h1><div class="card"><button class="btn -primary" id="btnSync">同期</button></div></section>
-    <section class="page" id="qr-batch" data-page><h1 class="page-title">QR一括出力</h1><div class="card"><div id="qr-preview" class="qr-preview"></div></div></section>
+
+    <section class="page" id="qr-batch" data-page>
+      <h1 class="page-title">QR一括出力</h1>
+      <div class="card">
+        <div class="grid-compact">
+          <label>サイズ(px)<input class="input" id="qr-size" value="600"></label>
+          <label>余白(px)<input class="input" id="qr-margin" value="4"></label>
+          <label style="display:flex;align-items:end;gap:.5rem">
+            <input type="checkbox" id="qr-label" checked> ラベル(名称/ID)を付与
+          </label>
+          <label class="grow">ベースURL<input class="input" id="qr-base" placeholder="https://tohatsuwahyu.github.io/inventory/"></label>
+        </div>
+        <div class="row-gap" style="margin-top:10px">
+          <button class="btn -primary" id="btn-qr-gen">生成</button>
+          <button class="btn" id="btn-qr-zip">ZIPでダウンロード</button>
+          <button class="btn -ghost" id="btn-qr-print">印刷用を開く</button>
+        </div>
+        <div id="qr-preview" class="qr-preview" style="margin-top:12px"></div>
+      </div>
+    </section>
+
     <section class="page" id="close-month" data-page><h1 class="page-title">月次締め</h1><div class="card"><button class="btn -primary" id="btnCloseMonth">実行</button></div></section>
     <section class="page" id="close-year" data-page><h1 class="page-title">年度開始に設定</h1><div class="card"><button class="btn -primary" id="btnCloseYear">実行</button></div></section>
     <section class="page" id="print" data-page><h1 class="page-title">印刷</h1><div class="card"><button class="btn" id="btnPrintTable">一覧を印刷</button></div></section>
-    <section class="page" id="settings" data-page><h1 class="page-title">設定</h1><div class="card"><p class="muted">API URL とトークンは <code>js/sheets.js</code> を編集してください。</p></div></section>
+
+    <section class="page" id="settings" data-page>
+      <h1 class="page-title">設定</h1>
+      <form class="card form-grid" id="form-settings">
+        <label>Web App URL（Apps Script /exec）
+          <input class="input" id="st-endpoint" placeholder="https://script.google.com/macros/s/…/exec" required>
+        </label>
+        <label>APIトークン（任意）
+          <input class="input" id="st-token" placeholder="Script properties の API_TOKEN と一致">
+        </label>
+        <label>QR ベースURL
+          <input class="input" id="st-qrbase" placeholder="https://tohatsuwahyu.github.io/inventory/">
+        </label>
+        <label>カメラFPS（任意）
+          <input class="input" id="st-fps" inputmode="numeric" placeholder="例: 8">
+        </label>
+        <label>QR枠サイズ（px・任意）
+          <input class="input" id="st-qrbox" inputmode="numeric" placeholder="例: 240">
+        </label>
+        <div class="form-actions">
+          <button class="btn -primary" type="submit">保存して更新</button>
+          <button class="btn -ghost" id="st-clear" type="button">ローカル設定を全削除</button>
+        </div>
+      </form>
+      <div class="card"><p class="muted">保存内容は localStorage に保持され、sheets.js / scan.js が自動参照します。</p></div>
+    </section>
 
     <footer class="footer"><small>© 2025 Inventory Control · Design by Wahyu</small></footer>
   </main>
 
-  <!-- 入力モーダル（QRまたは手動で開く） -->
+  <!-- 入力モーダル -->
   <div id="modal-input" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="m-title">
     <div class="modal-card">
       <div class="modal-head">
@@ -153,47 +203,17 @@
         <label>名称<input class="input" id="m-name" readonly></label>
         <label>重量入力 (g)<input class="input" id="m-weight" inputmode="decimal" placeholder="例: 1200"></label>
         <label>個数入力 (pcs)<input class="input" id="m-count" inputmode="numeric" placeholder="例: 500"></label>
-        <div class="form-actions">
-          <button type="submit" class="btn -primary">OK</button>
-        </div>
+        <div class="form-actions"><button type="submit" class="btn -primary">OK</button></div>
       </form>
     </div>
   </div>
-<section class="page" id="qr-batch" data-page>
-  <h1 class="page-title">QR一括出力</h1>
 
-  <div class="card">
-    <div class="grid-compact">
-      <label>サイズ(px)
-        <input class="input" id="qr-size" value="600" inputmode="numeric">
-      </label>
-      <label>余白(px)
-        <input class="input" id="qr-margin" value="4" inputmode="numeric">
-      </label>
-      <label style="display:flex;align-items:end;gap:.5rem">
-        <input type="checkbox" id="qr-label" checked> ラベル(名称/ID)を付与
-      </label>
-      <label class="grow">ベースURL
-        <input class="input" id="qr-base" placeholder="https://tohatsuwahyu.github.io/inventory/">
-      </label>
-    </div>
-
-    <div class="row-gap" style="margin-top:10px">
-      <button class="btn -primary" id="btn-qr-gen">生成</button>
-      <button class="btn" id="btn-qr-zip">ZIPでダウンロード</button>
-      <button class="btn -ghost" id="btn-qr-print">印刷用を開く</button>
-    </div>
-
-    <div id="qr-preview" class="qr-preview" style="margin-top:12px"></div>
-  </div>
-</section>
-
-  <!-- UI & App logic -->
+  <!-- JS -->
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/sheets.js"></script>
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/scan.js"></script>
   <script type="module" src="js/qr_batch_page.js"></script>
-
+  <script type="module" src="js/settings.js"></script>
 </body>
 </html>
