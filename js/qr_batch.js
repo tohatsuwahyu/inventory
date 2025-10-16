@@ -8,56 +8,120 @@ const marginEl= document.getElementById('qr-margin');
 const labelEl = document.getElementById('qr-label');
 const baseEl  = document.getElementById('qr-base');
 
-// --- Dinamis load QRCode lib dengan fallback ---
+/* ---------------- QR LIB LOADER (multi-fallback) ---------------- */
 function loadScript(src){
   return new Promise((resolve, reject)=>{
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
     s.crossOrigin = 'anonymous';
-    s.onload = ()=> resolve();
+    s.onload = ()=> resolve(true);
     s.onerror = ()=> reject(new Error('load failed: ' + src));
     document.head.appendChild(s);
   });
 }
-async function ensureQRCodeReady() {
-  if (window && window.QRCode) return window.QRCode;
-  // coba CDN 1 (jsDelivr)
-  try { await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'); }
-  catch(_) { /* lanjut fallback */ }
-  if (window && window.QRCode) return window.QRCode;
-  // fallback CDN 2 (unpkg)
-  try { await loadScript('https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'); }
-  catch(e) { /* biarkan cek di bawah */ }
-  if (window && window.QRCode) return window.QRCode;
+
+// Kembalikan adaptor { toCanvas(canvas, text, {width, margin}, cb) }
+async function ensureQRAdapter() {
+  // 1) qrcode (npm:qrcode) -> window.QRCode.toCanvas(...)
+  if (!window.QRCode) {
+    try { await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'); } catch(_){}
+    if (!window.QRCode) { try { await loadScript('https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'); } catch(_){ /* next */ } }
+  }
+  if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
+    return { toCanvas: (canvas, text, opts, cb)=> window.QRCode.toCanvas(canvas, text, { width: opts.width, margin: opts.margin ?? 4 }, cb) };
+  }
+
+  // 2) QRious -> window.QRious
+  if (!window.QRious) {
+    try { await loadScript('https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js'); } catch(_){}
+    if (!window.QRious) { try { await loadScript('https://unpkg.com/qrious@4.0.2/dist/qrious.min.js'); } catch(_){ /* next */ } }
+  }
+  if (window.QRious) {
+    return { toCanvas: (canvas, text, opts, cb)=>{
+      try {
+        // QRious menggambar langsung ke canvas target
+        new window.QRious({ element: canvas, value: text, size: opts.width || 320, level: 'L' });
+        cb && cb(null);
+      } catch(e){ cb && cb(e); }
+    }};
+  }
+
+  // 3) qr-creator -> window.QrCreator
+  if (!window.QrCreator) {
+    try { await loadScript('https://cdn.jsdelivr.net/npm/qr-creator@1.0.0/dist/qr-creator.min.js'); } catch(_){}
+    if (!window.QrCreator) { try { await loadScript('https://unpkg.com/qr-creator@1.0.0/dist/qr-creator.min.js'); } catch(_){ /* next */ } }
+  }
+  if (window.QrCreator && typeof window.QrCreator.render === 'function') {
+    return { toCanvas: (canvas, text, opts, cb)=>{
+      try{
+        window.QrCreator.render({
+          text, radius:0, ecLevel:'L',
+          fill:'#000000', background:null,
+          size: opts.width || 320,
+          mode: 'canvas',
+          canvas
+        });
+        cb && cb(null);
+      }catch(e){ cb && cb(e); }
+    }};
+  }
+
+  // 4) qrcodejs (davidshimjs) -> window.QRCode (class)
+  if (!window.QRCode || typeof window.QRCode === 'function' && !window.QRCode.toCanvas) {
+    try { await loadScript('https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js'); } catch(_){}
+    if (!window.QRCode) { try { await loadScript('https://unpkg.com/qrcodejs/qrcode.min.js'); } catch(_){ /* give up */ } }
+  }
+  if (window.QRCode && typeof window.QRCode === 'function') {
+    // API class: new QRCode(domEl, { text, width, height })
+    return { toCanvas: (canvas, text, opts, cb)=>{
+      try{
+        const temp = document.createElement('div');
+        const qr = new window.QRCode(temp, { text, width: opts.width || 320, height: opts.width || 320, correctLevel: 0 /*L*/ });
+        // qrcodejs menggambar <img> atau <canvas> ke temp
+        // ambil <img> -> draw ke canvas
+        setTimeout(()=>{
+          const img = temp.querySelector('img') || temp.querySelector('canvas');
+          if (!img) { cb && cb(new Error('qrcodejs output not found')); return; }
+          const w = opts.width || 320;
+          const ctx = canvas.getContext('2d');
+          canvas.width = w; canvas.height = w;
+          if (img.tagName.toLowerCase() === 'img') {
+            const pic = new Image();
+            pic.onload = ()=> { ctx.drawImage(pic, 0, 0, w, w); cb && cb(null); };
+            pic.onerror = ()=> cb && cb(new Error('drawImage failed'));
+            pic.src = img.src;
+          } else {
+            ctx.drawImage(img, 0, 0, w, w);
+            cb && cb(null);
+          }
+        }, 0);
+      }catch(e){ cb && cb(e); }
+    }};
+  }
 
   throw new Error('QRライブラリの読み込みに失敗しました。（QRCode not found）');
 }
+/* --------------- /QR LIB LOADER ---------------- */
 
-// --- UI helpers ---
 btnOpen.onclick = async () => {
   modal.classList.add('show'); modal.classList.remove('hidden');
   if (!baseEl.value) baseEl.value = new URL('./', location.href).href.replace(/index\.html?$/,'');
 };
 modal.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { modal.classList.remove('show'); modal.classList.add('hidden'); });
 
-function buildItemUrl(base, id) {
-  const u = new URL(base);
-  u.searchParams.set('id', id);
-  return u.toString();
-}
+function buildItemUrl(base, id){ const u = new URL(base); u.searchParams.set('id', id); return u.toString(); }
 function sanitizeName(s){ return String(s||'').replace(/[\\/:*?"<>|]/g,'_'); }
 
-// --- Generate preview ---
 document.getElementById('btn-qr-gen').onclick = async () => {
   preview.innerHTML = '';
   const size   = +sizeEl.value  || 320;
-  const margin = +marginEl.value|| 4;
+  const margin = +marginEl.value|| 4; // (beberapa lib abaikan margin)
   const withLabel = labelEl.checked;
   const base   = baseEl.value.trim();
 
   let QR;
-  try { QR = await ensureQRCodeReady(); }
+  try { QR = await ensureQRAdapter(); }
   catch (e) { alert(e.message); return; }
 
   let data;
@@ -72,8 +136,8 @@ document.getElementById('btn-qr-gen').onclick = async () => {
     wrap.className = 'p-2 border rounded-xl grid place-items-center';
     const canvas = document.createElement('canvas');
 
-    await new Promise((resolve, reject) =>
-      QR.toCanvas(canvas, url, { width: size, margin }, (err) => err ? reject(err) : resolve())
+    await new Promise((resolve, reject)=>
+      QR.toCanvas(canvas, url, { width: size, margin }, (err)=> err ? reject(err) : resolve())
     );
 
     wrap.appendChild(canvas);
@@ -88,7 +152,6 @@ document.getElementById('btn-qr-gen').onclick = async () => {
   }
 };
 
-// --- ZIP & Print ---
 document.getElementById('btn-qr-zip').onclick = async () => {
   const canv = [...preview.querySelectorAll('canvas')];
   if (!canv.length) return alert('先に生成してください。');
