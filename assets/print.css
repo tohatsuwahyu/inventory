@@ -1,0 +1,5 @@
+/* Sembunyikan navigasi saat print */
+header, #modal-scan, #modal-item { display: none !important; }
+/* Atur tabel supaya hemat kertas */
+#items-table { font-size: 10pt; }
+#items-table th, #items-table td { padding: 6px 8px; }
