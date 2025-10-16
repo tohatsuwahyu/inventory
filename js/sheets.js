@@ -1,5 +1,5 @@
 // ===== endpoint =====
-const ENDPOINT = 'https://script.google.com/macros/s/AKfycbz3namAdmdRc4qYXl9fBdDRiYE6kZgqRScrofyfHfnw4s6hiOzSLoeiIcFwua-o_ACY1A/exec';
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
 const TOKEN    = ''; // isi jika pakai API_TOKEN; kosongkan jika tidak pakai
 
 function _url(params = {}) {
