@@ -7,6 +7,9 @@ const sizeEl  = document.getElementById('qr-size');
 const labelEl = document.getElementById('qr-label');
 const baseEl  = document.getElementById('qr-base');
 
+// default ukuran output tinggi (agar tajam saat cetak)
+if (!sizeEl.value) sizeEl.value = '600'; // ~5cm @ ~300dpi
+
 btnOpen.onclick = () => {
   modal.classList.add('show'); modal.classList.remove('hidden');
   if (!baseEl.value) baseEl.value = new URL('./', location.href).href.replace(/index\.html?$/,'');
@@ -14,11 +17,10 @@ btnOpen.onclick = () => {
 modal.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { modal.classList.remove('show'); modal.classList.add('hidden'); });
 
 function sanitizeName(s){ return String(s||'').replace(/[\\/:*?"<>|]/g,'_'); }
-function b64ToBlob(b64){ const bin=atob(b64); const len=bin.length; const u8=new Uint8Array(len); for(let i=0;i<len;i++) u8[i]=bin.charCodeAt(i); return new Blob([u8],{type:'image/png'}); }
 
 document.getElementById('btn-qr-gen').onclick = async ()=>{
   preview.innerHTML = '';
-  const size = +sizeEl.value || 320;
+  const size = +sizeEl.value || 600;         // px sumber (tajam)
   const withLabel = labelEl.checked;
   const base = baseEl.value.trim();
 
@@ -31,7 +33,7 @@ document.getElementById('btn-qr-gen').onclick = async ()=>{
   for (const it of list){
     let qr;
     try{
-      qr = await getQr({ id: it.id, base, size });
+      qr = await getQr({ id: it.id, base, size }); // JSONP: prioritas b64, fallback url
     }catch(e){
       alert(`QR生成失敗 (${it.id}): ` + e.message);
       continue;
@@ -41,16 +43,21 @@ document.getElementById('btn-qr-gen').onclick = async ()=>{
     wrap.className = 'p-2 border rounded-xl grid place-items-center';
 
     const img = new Image();
+    // preview ukuran kecil biar muat di modal, tetapi CETAK akan dipaksa 5cm
+    img.style.width  = '160px';
+    img.style.height = '160px';
+    img.alt = it.id;
+
     if (qr.kind === 'b64') {
       img.src = 'data:image/png;base64,' + qr.data;
       img.dataset.b64 = qr.data;
-      img.dataset.filename = `${sanitizeName(it.id)}.png`;
     } else {
-      img.src = qr.data; // URL Google Chart
-      img.dataset.b64 = ''; // tidak ada
-      img.dataset.filename = `${sanitizeName(it.id)}.png`;
+      img.src = qr.data; // URL provider
+      img.dataset.b64 = '';
+      // Fallback jika provider pernah blok → coba fetch ke dataURL via canvas (best-effort; kalau CORS blok ya tetap tampil di print dengan <img src=url>)
+      img.crossOrigin = 'anonymous';
     }
-    img.width = size; img.height = size;
+    img.dataset.filename = `${sanitizeName(it.id)}.png`;
     wrap.appendChild(img);
 
     if (withLabel) {
@@ -67,10 +74,9 @@ document.getElementById('btn-qr-zip').onclick = async ()=>{
   const imgs = [...preview.querySelectorAll('img')];
   if (!imgs.length) return alert('先に生成してください。');
 
-  // Cek apakah semua base64 tersedia
   const allB64 = imgs.every(im => im.dataset.b64);
   if (!allB64) {
-    alert('ZIPはベース64が必要です。Apps Script で「authorizeFetch」を一度実行して権限を付与してください。その後再度 生成 を押すとZIP可能になります。');
+    alert('ZIPはベース64が必要です。Apps Script で「authorizeFetch」を一度実行して権限を付与してください。その後もう一度“生成”。');
     return;
   }
 
@@ -85,13 +91,19 @@ document.getElementById('btn-qr-zip').onclick = async ()=>{
 document.getElementById('btn-qr-print').onclick = ()=>{
   const imgs = [...preview.querySelectorAll('img')];
   if (!imgs.length) return alert('先に生成してください。');
+
   const w = window.open('', '_blank');
   const items = imgs.map(im =>
-    `<div style="page-break-inside:avoid;display:inline-block;margin:10px;text-align:center">
-       <img src="${im.dataset.b64 ? 'data:image/png;base64,'+im.dataset.b64 : im.src}" width="${im.width}" height="${im.height}" />
-       <div style="font-size:10px">${im.nextSibling?.textContent || ''}</div>
+    `<div style="page-break-inside:avoid;display:inline-block;margin:8mm;text-align:center">
+       <img src="${im.dataset.b64 ? 'data:image/png;base64,'+im.dataset.b64 : im.src}"
+            style="width:5cm;height:5cm;object-fit:contain" />
+       <div style="font-size:10px;margin-top:2mm">${im.nextSibling?.textContent || ''}</div>
      </div>`
   ).join('');
-  w.document.write(`<html><head><title>QR Print</title></head><body>${items}</body></html>`);
+  w.document.write(`
+    <html><head><title>QR Print</title>
+      <meta charset="utf-8" />
+      <style>@page{ size:A4; margin:10mm } body{ margin:0; }</style>
+    </head><body>${items}</body></html>`);
   w.document.close(); w.focus();
 };
