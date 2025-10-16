@@ -2,219 +2,213 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>在庫管理 — QR + スプレッドシート</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="icon" href="assets/tsh.png" />
-  <meta property="og:image" content="assets/tsh.png" />
-  <link rel="stylesheet" href="assets/styles.css" />
-  <link rel="stylesheet" href="assets/print.css" media="print" />
-  <!-- ライブラリ -->
-  <script defer src="https://unpkg.com/html5-qrcode"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- 追加: QR 生成 & ZIP -->
-   <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>TSH在庫管理 | ダッシュボード</title>
+  <link rel="preload" href="assets/styles.css" as="style">
+  <link rel="stylesheet" href="assets/styles.css">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0f2342">
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
-  <!-- Topbar -->
-  <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <img src="assets/tsh.png" alt="logo" class="w-8 h-8 rounded" />
-        <h1 class="text-lg md:text-xl font-semibold">在庫管理</h1>
-      </div>
-      <nav class="flex gap-2">
-        <button id="btn-scan" class="px-3 py-2 rounded-xl border hover:bg-slate-100">QRをスキャン</button>
-        <button id="btn-add" class="px-3 py-2 rounded-xl border hover:bg-slate-100">品目を追加</button>
-        <button id="btn-import" class="px-3 py-2 rounded-xl border hover:bg-slate-100">CSV取込</button>
-        <button id="btn-export" class="px-3 py-2 rounded-xl border hover:bg-slate-100">CSV出力</button>
-        <div class="relative">
-          <button id="btn-sync" class="px-3 py-2 rounded-xl border hover:bg-slate-100">シート同期</button>
-          <div id="sync-menu" class="hidden absolute right-0 mt-1 bg-white border rounded-xl shadow">
-            <button id="btn-sync-pull" class="block px-3 py-2 w-full text-left hover:bg-slate-100">読み込み</button>
-            <button id="btn-sync-push" class="block px-3 py-2 w-full text-left hover:bg-slate-100">書き込み</button>
-          </div>
-        </div>
-        <button id="btn-qr-batch" class="px-3 py-2 rounded-xl border hover:bg-slate-100">QR一括出力</button>
-        <button id="btn-close-month" class="px-3 py-2 rounded-xl border hover:bg-slate-100">月次締め</button>
-        <button id="btn-close-year" class="px-3 py-2 rounded-xl border hover:bg-slate-100">年度開始に設定</button>
-        <button onclick="window.print()" class="px-3 py-2 rounded-xl border hover:bg-slate-100">印刷</button>
-      </nav>
-    </div>
+<body>
+  <!-- Top Navbar -->
+  <header class="topbar" id="topbar" role="banner" aria-label="アプリのトップバー">
+    <button class="icon-btn -ghost" id="btnSidebar" aria-label="メニューを開く" aria-controls="sidebar" aria-expanded="false">
+      <!-- hamburger -->
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+
+    <a class="brand" href="#dashboard" aria-label="ダッシュボードへ">
+      <img src="assets/tsh.png" alt="" class="brand-logo" loading="lazy" decoding="async">
+      <span class="brand-name">Inventory Control</span>
+    </a>
+
+    <nav class="top-actions" aria-label="クイック操作">
+      <a class="btn -sm -primary" href="#qr-scan">QRをスキャン</a>
+      <a class="icon-btn -ghost" href="#settings" aria-label="設定">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7ZM19.4 15a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2-1.6-2-3.5-2.4 1a7.7 7.7 0 0 0-1.7-1l-.3-2.6h-4l-.3 2.6a7.7 7.7 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.6a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.5 2.4-1a7.7 7.7 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.7 7.7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.6Z" fill="currentColor"/></svg>
+      </a>
+    </nav>
   </header>
 
-  <!-- メイン -->
-  <main class="max-w-7xl mx-auto p-4">
-    <!-- QR指定時の入力カード（?id=... で自動表示） -->
-    <section id="input-card" class="hidden mb-4">
-      <div class="bg-white rounded-2xl border shadow-sm p-4">
-        <div class="flex items-center justify-between mb-2">
-          <div>
-            <div class="text-xs text-slate-500">対象品目</div>
-            <div id="ic-title" class="text-lg font-semibold">-</div>
-            <div id="ic-sub" class="text-xs text-slate-500">-</div>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-xs px-2 py-1 rounded bg-slate-100 border">QR入力モード</span>
-          </div>
-        </div>
-        <div class="grid md:grid-cols-3 gap-3">
-          <label class="grid">
-            <span class="text-sm">総重量 (g)</span>
-            <input id="ic-weight" type="number" step="0.01" min="0" class="px-3 py-2 rounded-xl border" />
-          </label>
-          <label class="grid">
-            <span class="text-sm">PCS</span>
-            <input id="ic-count" type="number" step="1" min="0" class="px-3 py-2 rounded-xl border" />
-          </label>
-          <div class="flex items-end gap-2">
-            <button id="ic-ok" class="px-4 py-2 rounded-xl bg-slate-900 text-white">OK</button>
-            <button id="ic-cancel" class="px-4 py-2 rounded-xl border">クリア</button>
-          </div>
-        </div>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" aria-label="メインナビゲーション">
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-title">メイン</div>
+        <a class="nav-link" href="#dashboard" data-link>ダッシュボード</a>
+        <a class="nav-link" href="#inventory" data-link>在庫一覧</a>
+        <a class="nav-link" href="#qr-scan" data-link>QRをスキャン</a>
+        <a class="nav-link" href="#item-add" data-link>品目を追加</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title">データ入出力</div>
+        <a class="nav-link" href="#csv-import" data-link>CSV取込</a>
+        <a class="nav-link" href="#csv-export" data-link>CSV出力</a>
+        <a class="nav-link" href="#sync" data-link>シート同期</a>
+        <a class="nav-link" href="#qr-batch" data-link>QR一括出力</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title">締め処理</div>
+        <a class="nav-link" href="#close-month" data-link>月次締め</a>
+        <a class="nav-link" href="#close-year" data-link>年度開始に設定</a>
+        <a class="nav-link" href="#print" data-link>印刷</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title">その他</div>
+        <a class="nav-link" href="#settings" data-link>設定</a>
+        <a class="nav-link" href="https://tohatsuwahyu.github.io/inventory/" target="_self">トップページ</a>
+      </div>
+      <footer class="sidebar-footer">
+        <small>Design by Wahyu</small>
+      </footer>
+    </nav>
+  </aside>
 
-        <!-- チャート -->
-        <div class="mt-4 grid md:grid-cols-3 gap-4">
-          <div class="p-3 rounded-xl border bg-slate-50">
-            <div class="text-xs text-slate-500">先月在庫</div>
-            <div id="ic-last" class="text-2xl font-semibold">-</div>
+  <!-- Main content -->
+  <main class="content" id="content" tabindex="-1">
+    <!-- DASHBOARD -->
+    <section class="page fade-in" id="dashboard" data-page>
+      <h1 class="page-title">ダッシュボード</h1>
+      <div class="grid">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">現在在庫（合計）</div>
+            <span class="badge -ok">当月</span>
           </div>
-          <div class="p-3 rounded-xl border bg-slate-50">
-            <div class="text-xs text-slate-500">現在在庫</div>
-            <div id="ic-now" class="text-2xl font-semibold">-</div>
-          </div>
-          <div class="p-3 rounded-xl border bg-slate-50">
-            <div class="text-xs text-slate-500">年度残数</div>
-            <div id="ic-annual" class="text-2xl font-semibold">-</div>
-          </div>
+          <div class="kpi"><span id="kpi-now">--</span><small>pcs</small></div>
+          <p class="muted">QRスキャンまたは手入力で更新されます。</p>
         </div>
-        <div class="mt-4 bg-white rounded-xl border p-3">
-          <canvas id="ic-chart"></canvas>
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">先月在庫</div>
+          </div>
+          <div class="kpi"><span id="kpi-last">--</span><small>pcs</small></div>
+          <p class="muted">「月次締め」で繰り上げ。</p>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">年度残数</div>
+            <span class="badge -info">FY</span>
+          </div>
+          <div class="kpi"><span id="kpi-annual">--</span><small>pcs</small></div>
+          <p class="muted">「年度開始に設定」で初期化。</p>
+        </div>
+      </div>
+
+      <div class="card -stretch">
+        <div class="card-head">
+          <div class="card-title">最近の更新</div>
+          <a class="btn -ghost -sm" href="#inventory">一覧へ</a>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="tbl-recent">
+            <thead><tr><th>日時</th><th>ID</th><th>方法</th><th>重量(g)</th><th>PCS</th><th>換算(PCS)</th></tr></thead>
+            <tbody></tbody>
+          </table>
         </div>
       </div>
     </section>
 
-    <!-- フィルタ & テーブル -->
-    <section class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-      <input id="search" type="search" placeholder="名称 / ID を検索…" class="px-3 py-2 rounded-xl border" />
-      <select id="view-month" class="px-3 py-2 rounded-xl border">
-        <option value="current">表示: 当月</option>
-        <option value="last">表示: 先月在庫</option>
-      </select>
-      <div class="flex items-center gap-2">
-        <label class="text-sm">表示列:</label>
-        <select id="view-columns" class="px-3 py-2 rounded-xl border">
-          <option value="basic">基本</option>
-          <option value="all">先月/現在/年度残を全て</option>
-        </select>
+    <!-- INVENTORY LIST -->
+    <section class="page" id="inventory" data-page>
+      <h1 class="page-title">在庫一覧</h1>
+      <div class="toolbar">
+        <input class="input" id="search" placeholder="名称 / ID を検索…" inputmode="search" />
+        <div class="toolbar-row">
+          <select class="select" id="view-scope" aria-label="表示範囲">
+            <option value="this">表示: 当月</option>
+            <option value="all">表示: すべて</option>
+          </select>
+          <select class="select" id="view-cols" aria-label="表示列">
+            <option value="basic">表示列: 基本</option>
+            <option value="full">表示列: 詳細</option>
+          </select>
+        </div>
       </div>
-    </section>
-
-    <section class="bg-white rounded-2xl shadow-sm border overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm" id="items-table">
-          <thead class="bg-slate-100 text-slate-700">
+      <div class="table-wrap">
+        <table class="table" id="tbl-inventory">
+          <thead>
             <tr>
-              <th class="px-3 py-2 text-left">QR/ID</th>
-              <th class="px-3 py-2 text-left">名称</th>
-              <th class="px-3 py-2 text-right">重量/個 (g)</th>
-              <th class="px-3 py-2 text-right">先月在庫</th>
-              <th class="px-3 py-2 text-right">現在在庫</th>
-              <th class="px-3 py-2 text-right">年度開始在庫</th>
-              <th class="px-3 py-2 text-right">年度残数</th>
-              <th class="px-3 py-2">操作</th>
+              <th>QR/ID</th><th>名称</th><th>重量/個 (g)</th><th>先月在庫</th><th>現在在庫</th><th>年度開始在庫</th><th>年度残数</th><th>操作</th>
             </tr>
           </thead>
-          <tbody id="items-body"></tbody>
+          <tbody></tbody>
         </table>
       </div>
-      <div class="p-3 text-xs text-slate-500">ヒント: QRをスキャンすると該当行にジャンプし、入力カードが上部に開きます。</div>
     </section>
-  </main>
 
-  <!-- モーダル: QRスキャナ -->
-  <div id="modal-scan" class="hidden fixed inset-0 bg-black/40 grid place-items-center p-4">
-    <div class="bg-white w-full max-w-lg rounded-2xl p-4 shadow-xl">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-lg font-semibold">QRをスキャン</h2>
-        <button class="px-2 py-1 rounded-lg border" data-close>✕</button>
+    <!-- QR SCAN -->
+    <section class="page" id="qr-scan" data-page>
+      <h1 class="page-title">QRをスキャン</h1>
+      <div class="card -stretch">
+        <p class="muted">箱のQRラベルを読み取ると、その部品の入力カードが自動表示されます。</p>
+        <div id="qr-mount" class="qr-mount">カメラを起動するにはブラウザの許可が必要です。</div>
       </div>
-      <div id="qr-reader" class="rounded-xl overflow-hidden border"></div>
-      <div id="qr-reader-results" class="mt-2 text-sm text-slate-600"></div>
-    </div>
-  </div>
+    </section>
 
-  <!-- モーダル: 品目追加/編集 -->
-  <div id="modal-item" class="hidden fixed inset-0 bg-black/40 grid place-items-center p-4">
-    <div class="bg-white w-full max-w-lg rounded-2xl p-4 shadow-xl">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-lg font-semibold">品目の追加 / 編集</h2>
-        <button class="px-2 py-1 rounded-lg border" data-close>✕</button>
-      </div>
-      <form id="item-form" class="grid gap-2">
-        <label class="grid">
-          <span class="text-sm">QR/品目ID</span>
-          <input name="id" required class="px-3 py-2 rounded-xl border" placeholder="例: BT-M6-20" />
-        </label>
-        <label class="grid">
-          <span class="text-sm">名称</span>
-          <input name="name" required class="px-3 py-2 rounded-xl border" placeholder="ボルト M6 x 20" />
-        </label>
-        <label class="grid">
-          <span class="text-sm">重量/個 (g)</span>
-          <input name="unitWeight" type="number" step="0.01" min="0" required class="px-3 py-2 rounded-xl border" />
-        </label>
-        <label class="grid">
-          <span class="text-sm">既定モード</span>
-          <select name="mode" class="px-3 py-2 rounded-xl border">
-            <option value="weight">重量→PCS</option>
-            <option value="count">PCS直接</option>
+    <!-- ADD ITEM -->
+    <section class="page" id="item-add" data-page>
+      <h1 class="page-title">品目を追加</h1>
+      <form class="card form-grid" id="form-add">
+        <label>品目ID<input class="input" name="id" required placeholder="例: BT-M6-20"></label>
+        <label>名称<input class="input" name="name" placeholder="例: ボルト M6×20"></label>
+        <label>重量/個 (g)<input class="input" name="unitWeight_g" inputmode="decimal" placeholder="例: 2.25"></label>
+        <label>計数モード
+          <select class="select" name="mode">
+            <option value="weight">重量</option>
+            <option value="count">個数</option>
           </select>
         </label>
-        <label class="grid">
-          <span class="text-sm">年度開始在庫 (pcs)</span>
-          <input name="yearStart" type="number" step="1" min="0" value="0" class="px-3 py-2 rounded-xl border" />
-        </label>
-        <div class="flex gap-2 justify-end mt-2">
-          <button type="button" class="px-3 py-2 rounded-xl border" data-close>キャンセル</button>
-          <button class="px-3 py-2 rounded-xl bg-slate-900 text-white">保存</button>
+        <label>年度開始在庫(PCS)<input class="input" name="yearStart_pcs" inputmode="numeric"></label>
+        <div class="form-actions">
+          <button class="btn -primary" type="submit">保存</button>
+          <a class="btn -ghost" href="#qr-batch">QR一括出力へ</a>
         </div>
       </form>
-    </div>
-  </div>
+    </section>
 
-  <!-- モーダル: QR一括出力 -->
-  <div id="modal-qr" class="hidden fixed inset-0 bg-black/40 grid place-items-center p-4">
-    <div class="bg-white w-full max-w-3xl rounded-2xl p-4 shadow-xl">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-lg font-semibold">QR一括出力</h2>
-        <button class="px-2 py-1 rounded-lg border" data-close>✕</button>
+    <!-- CSV IMPORT/EXPORT / SYNC / QR BATCH / CLOSE / PRINT -->
+    <section class="page" id="csv-import" data-page><h1 class="page-title">CSV取込</h1><div class="card"><input class="input" type="file" accept=".csv" id="csvIn"><button class="btn -primary" id="btnCsvIn">取込</button></div></section>
+    <section class="page" id="csv-export" data-page><h1 class="page-title">CSV出力</h1><div class="card"><button class="btn -primary" id="btnCsvOut">ダウンロード</button></div></section>
+    <section class="page" id="sync" data-page><h1 class="page-title">シート同期</h1><div class="card"><button class="btn -primary" id="btnSync">同期</button></div></section>
+    <section class="page" id="qr-batch" data-page>
+      <h1 class="page-title">QR一括出力</h1>
+      <div class="card">
+        <div class="grid-compact">
+          <label>サイズ(px)<input class="input" id="qr-size" value="600"></label>
+          <label>余白(px)<input class="input" id="qr-margin" value="4"></label>
+          <label><input type="checkbox" id="qr-label" checked> ラベル(名称/ID)を付与</label>
+          <label class="grow">ベースURL<input class="input" id="qr-base" placeholder="https://example.github.io/inventory/"></label>
+        </div>
+        <div class="row-gap">
+          <button class="btn -primary" id="btn-qr-gen">生成</button>
+          <button class="btn" id="btn-qr-zip">ZIPでダウンロード</button>
+          <button class="btn -ghost" id="btn-qr-print">印刷用を開く</button>
+        </div>
+        <div id="qr-preview" class="qr-preview"></div>
       </div>
-      <div class="grid md:grid-cols-4 gap-3 mb-3">
-        <label class="grid"><span class="text-sm">サイズ(px)</span><input id="qr-size" type="number" value="320" class="px-3 py-2 rounded-xl border"/></label>
-        <label class="grid"><span class="text-sm">余白(px)</span><input id="qr-margin" type="number" value="4" class="px-3 py-2 rounded-xl border"/></label>
-        <label class="flex items-center gap-2"><input id="qr-label" type="checkbox" checked/><span>ラベル(名称/ID)を付与</span></label>
-        <label class="grid"><span class="text-sm">ベースURL</span><input id="qr-base" class="px-3 py-2 rounded-xl border" /></label>
-      </div>
-      <div class="flex gap-2 mb-3">
-        <button id="btn-qr-gen" class="px-3 py-2 rounded-xl border">生成</button>
-        <button id="btn-qr-zip" class="px-3 py-2 rounded-xl border">ZIPでダウンロード</button>
-        <button id="btn-qr-print" class="px-3 py-2 rounded-xl border">印刷用を開く</button>
-      </div>
-      <div id="qr-preview" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-h-[50vh] overflow-auto"></div>
-      <div class="text-xs text-slate-500 mt-2">ファイル名は <code>{id}.png</code> で保存され、Spreadsheetの <code>inventory.id</code> と一致します。</div>
-    </div>
-  </div>
+    </section>
+    <section class="page" id="close-month" data-page><h1 class="page-title">月次締め</h1><div class="card"><button class="btn -primary" id="btnCloseMonth">実行</button></div></section>
+    <section class="page" id="close-year" data-page><h1 class="page-title">年度開始に設定</h1><div class="card"><button class="btn -primary" id="btnCloseYear">実行</button></div></section>
+    <section class="page" id="print" data-page><h1 class="page-title">印刷</h1><div class="card"><button class="btn" id="btnPrintTable">一覧を印刷</button></div></section>
 
-  <!-- フッター -->
-  <footer class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-500 flex items-center justify-between">
-    <div>© <span id="year"></span> Inventory Control</div>
-    <div class="italic">Design by Wahyu</div>
-  </footer>
-  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+    <!-- SETTINGS -->
+    <section class="page" id="settings" data-page>
+      <h1 class="page-title">設定</h1>
+      <div class="card">
+        <p class="muted">API URL とトークンは <code>js/sheets.js</code> をご確認ください。</p>
+      </div>
+    </section>
 
-  <script type="module" src="js/app.js"></script>
-  <script type="module" src="js/qr_batch.js"></script>
+    <footer class="footer">
+      <small>© 2025 Inventory Control · Design by Wahyu</small>
+    </footer>
+  </main>
+
+  <!-- JS (UI制御と既存ロジックのフック) -->
+  <script type="module" src="js/ui.js"></script>
+  <!-- 既存アプリのロジックをこの下で読み込む（必要に応じて） -->
+  <!-- <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/qr_batch.js"></script> -->
 </body>
 </html>
