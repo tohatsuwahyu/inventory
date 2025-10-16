@@ -3,35 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>TSH在庫管理 | ダッシュボード</title>
+  <title>在庫管理 | ダッシュボード</title>
   <link rel="preload" href="assets/styles.css" as="style">
   <link rel="stylesheet" href="assets/styles.css">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#0f2342">
+
+  <!-- 軽量QRスキャナ（ブラウザ許可が必要） -->
+  <script defer src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
-  <!-- Top Navbar -->
-  <header class="topbar" id="topbar" role="banner" aria-label="アプリのトップバー">
-    <button class="icon-btn -ghost" id="btnSidebar" aria-label="メニューを開く" aria-controls="sidebar" aria-expanded="false">
-      <!-- hamburger -->
-      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <header class="topbar" id="topbar">
+    <button class="icon-btn -ghost" id="btnSidebar" aria-label="メニュー">
+      <svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
-
-    <a class="brand" href="#dashboard" aria-label="ダッシュボードへ">
-      <img src="assets/tsh.png" alt="" class="brand-logo" loading="lazy" decoding="async">
+    <a class="brand" href="#dashboard">
+      <img src="assets/tsh.png" class="brand-logo" alt="">
       <span class="brand-name">Inventory Control</span>
     </a>
-
-    <nav class="top-actions" aria-label="クイック操作">
+    <nav class="top-actions">
       <a class="btn -sm -primary" href="#qr-scan">QRをスキャン</a>
-      <a class="icon-btn -ghost" href="#settings" aria-label="設定">
-        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7ZM19.4 15a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2-1.6-2-3.5-2.4 1a7.7 7.7 0 0 0-1.7-1l-.3-2.6h-4l-.3 2.6a7.7 7.7 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.6a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.5 2.4-1a7.7 7.7 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.7 7.7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.6Z" fill="currentColor"/></svg>
-      </a>
     </nav>
   </header>
 
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar" aria-label="メインナビゲーション">
+  <aside class="sidebar" id="sidebar">
     <nav class="nav">
       <div class="nav-section">
         <div class="nav-title">メイン</div>
@@ -56,70 +51,49 @@
       <div class="nav-section">
         <div class="nav-title">その他</div>
         <a class="nav-link" href="#settings" data-link>設定</a>
-        <a class="nav-link" href="https://tohatsuwahyu.github.io/inventory/" target="_self">トップページ</a>
+        <a class="nav-link" href="/inventory/#dashboard">トップページ</a>
       </div>
-      <footer class="sidebar-footer">
-        <small>Design by Wahyu</small>
-      </footer>
+      <footer class="sidebar-footer"><small>Design by Wahyu</small></footer>
     </nav>
   </aside>
 
-  <!-- Main content -->
   <main class="content" id="content" tabindex="-1">
-    <!-- DASHBOARD -->
-    <section class="page fade-in" id="dashboard" data-page>
+    <!-- Dashboard -->
+    <section class="page -active" id="dashboard" data-page>
       <h1 class="page-title">ダッシュボード</h1>
       <div class="grid">
         <div class="card">
-          <div class="card-head">
-            <div class="card-title">現在在庫（合計）</div>
-            <span class="badge -ok">当月</span>
-          </div>
+          <div class="card-head"><div class="card-title">現在在庫（合計）</div><span class="badge -ok">当月</span></div>
           <div class="kpi"><span id="kpi-now">--</span><small>pcs</small></div>
           <p class="muted">QRスキャンまたは手入力で更新されます。</p>
         </div>
         <div class="card">
-          <div class="card-head">
-            <div class="card-title">先月在庫</div>
-          </div>
+          <div class="card-head"><div class="card-title">先月在庫</div></div>
           <div class="kpi"><span id="kpi-last">--</span><small>pcs</small></div>
           <p class="muted">「月次締め」で繰り上げ。</p>
         </div>
         <div class="card">
-          <div class="card-head">
-            <div class="card-title">年度残数</div>
-            <span class="badge -info">FY</span>
-          </div>
+          <div class="card-head"><div class="card-title">年度残数</div><span class="badge -info">FY</span></div>
           <div class="kpi"><span id="kpi-annual">--</span><small>pcs</small></div>
           <p class="muted">「年度開始に設定」で初期化。</p>
         </div>
       </div>
 
       <div class="card -stretch">
-        <div class="card-head">
-          <div class="card-title">最近の更新</div>
-          <a class="btn -ghost -sm" href="#inventory">一覧へ</a>
-        </div>
+        <div class="card-head"><div class="card-title">最近の更新</div><a class="btn -ghost -sm" href="#inventory">一覧へ</a></div>
         <div class="table-wrap">
-          <table class="table" id="tbl-recent">
-            <thead><tr><th>日時</th><th>ID</th><th>方法</th><th>重量(g)</th><th>PCS</th><th>換算(PCS)</th></tr></thead>
-            <tbody></tbody>
-          </table>
+          <table class="table" id="tbl-recent"><thead><tr><th>日時</th><th>ID</th><th>方法</th><th>重量(g)</th><th>PCS</th><th>換算(PCS)</th></tr></thead><tbody></tbody></table>
         </div>
       </div>
     </section>
 
-    <!-- INVENTORY LIST -->
+    <!-- Inventory list -->
     <section class="page" id="inventory" data-page>
       <h1 class="page-title">在庫一覧</h1>
       <div class="toolbar">
-        <input class="input" id="search" placeholder="名称 / ID を検索…" inputmode="search" />
+        <input class="input" id="search" placeholder="名称 / ID を検索…">
         <div class="toolbar-row">
-          <select class="select" id="view-scope" aria-label="表示範囲">
-            <option value="this">表示: 当月</option>
-            <option value="all">表示: すべて</option>
-          </select>
-          <select class="select" id="view-cols" aria-label="表示列">
+          <select class="select" id="view-cols">
             <option value="basic">表示列: 基本</option>
             <option value="full">表示列: 詳細</option>
           </select>
@@ -127,88 +101,69 @@
       </div>
       <div class="table-wrap">
         <table class="table" id="tbl-inventory">
-          <thead>
-            <tr>
-              <th>QR/ID</th><th>名称</th><th>重量/個 (g)</th><th>先月在庫</th><th>現在在庫</th><th>年度開始在庫</th><th>年度残数</th><th>操作</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>QR/ID</th><th>名称</th><th>重量/個(g)</th><th>先月在庫</th><th>現在在庫</th><th>年度開始在庫</th><th>年度残数</th><th>操作</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
-    <!-- QR SCAN -->
+    <!-- QR scan -->
     <section class="page" id="qr-scan" data-page>
       <h1 class="page-title">QRをスキャン</h1>
-      <div class="card -stretch">
-        <p class="muted">箱のQRラベルを読み取ると、その部品の入力カードが自動表示されます。</p>
-        <div id="qr-mount" class="qr-mount">カメラを起動するにはブラウザの許可が必要です。</div>
-      </div>
+      <div class="card -stretch"><div id="qr-mount" class="qr-mount">カメラ許可を与えてください…</div></div>
     </section>
 
-    <!-- ADD ITEM -->
+    <!-- Add item -->
     <section class="page" id="item-add" data-page>
       <h1 class="page-title">品目を追加</h1>
       <form class="card form-grid" id="form-add">
-        <label>品目ID<input class="input" name="id" required placeholder="例: BT-M6-20"></label>
-        <label>名称<input class="input" name="name" placeholder="例: ボルト M6×20"></label>
-        <label>重量/個 (g)<input class="input" name="unitWeight_g" inputmode="decimal" placeholder="例: 2.25"></label>
-        <label>計数モード
-          <select class="select" name="mode">
-            <option value="weight">重量</option>
-            <option value="count">個数</option>
-          </select>
-        </label>
+        <label>品目ID<input class="input" name="id" required></label>
+        <label>名称<input class="input" name="name"></label>
+        <label>重量/個 (g)<input class="input" name="unitWeight_g" inputmode="decimal"></label>
+        <label>計数モード<select class="select" name="mode"><option value="weight">重量</option><option value="count">個数</option></select></label>
         <label>年度開始在庫(PCS)<input class="input" name="yearStart_pcs" inputmode="numeric"></label>
-        <div class="form-actions">
-          <button class="btn -primary" type="submit">保存</button>
-          <a class="btn -ghost" href="#qr-batch">QR一括出力へ</a>
-        </div>
+        <div class="form-actions"><button class="btn -primary" type="submit">保存</button></div>
       </form>
     </section>
 
-    <!-- CSV IMPORT/EXPORT / SYNC / QR BATCH / CLOSE / PRINT -->
+    <!-- simple sections -->
     <section class="page" id="csv-import" data-page><h1 class="page-title">CSV取込</h1><div class="card"><input class="input" type="file" accept=".csv" id="csvIn"><button class="btn -primary" id="btnCsvIn">取込</button></div></section>
     <section class="page" id="csv-export" data-page><h1 class="page-title">CSV出力</h1><div class="card"><button class="btn -primary" id="btnCsvOut">ダウンロード</button></div></section>
     <section class="page" id="sync" data-page><h1 class="page-title">シート同期</h1><div class="card"><button class="btn -primary" id="btnSync">同期</button></div></section>
-    <section class="page" id="qr-batch" data-page>
-      <h1 class="page-title">QR一括出力</h1>
-      <div class="card">
-        <div class="grid-compact">
-          <label>サイズ(px)<input class="input" id="qr-size" value="600"></label>
-          <label>余白(px)<input class="input" id="qr-margin" value="4"></label>
-          <label><input type="checkbox" id="qr-label" checked> ラベル(名称/ID)を付与</label>
-          <label class="grow">ベースURL<input class="input" id="qr-base" placeholder="https://example.github.io/inventory/"></label>
-        </div>
-        <div class="row-gap">
-          <button class="btn -primary" id="btn-qr-gen">生成</button>
-          <button class="btn" id="btn-qr-zip">ZIPでダウンロード</button>
-          <button class="btn -ghost" id="btn-qr-print">印刷用を開く</button>
-        </div>
-        <div id="qr-preview" class="qr-preview"></div>
-      </div>
-    </section>
+    <section class="page" id="qr-batch" data-page><h1 class="page-title">QR一括出力</h1><div class="card"><div id="qr-preview" class="qr-preview"></div></div></section>
     <section class="page" id="close-month" data-page><h1 class="page-title">月次締め</h1><div class="card"><button class="btn -primary" id="btnCloseMonth">実行</button></div></section>
     <section class="page" id="close-year" data-page><h1 class="page-title">年度開始に設定</h1><div class="card"><button class="btn -primary" id="btnCloseYear">実行</button></div></section>
     <section class="page" id="print" data-page><h1 class="page-title">印刷</h1><div class="card"><button class="btn" id="btnPrintTable">一覧を印刷</button></div></section>
+    <section class="page" id="settings" data-page><h1 class="page-title">設定</h1><div class="card"><p class="muted">API URL とトークンは <code>js/sheets.js</code> を編集してください。</p></div></section>
 
-    <!-- SETTINGS -->
-    <section class="page" id="settings" data-page>
-      <h1 class="page-title">設定</h1>
-      <div class="card">
-        <p class="muted">API URL とトークンは <code>js/sheets.js</code> をご確認ください。</p>
-      </div>
-    </section>
-
-    <footer class="footer">
-      <small>© 2025 Inventory Control · Design by Wahyu</small>
-    </footer>
+    <footer class="footer"><small>© 2025 Inventory Control · Design by Wahyu</small></footer>
   </main>
 
-  <!-- JS (UI制御と既存ロジックのフック) -->
+  <!-- 入力モーダル（QRまたは手動で開く） -->
+  <div id="modal-input" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title" id="m-title">在庫入力</div>
+        <button class="icon-btn" id="m-close" aria-label="閉じる">✕</button>
+      </div>
+      <form id="m-form" class="form-grid">
+        <label>品目ID<input class="input" id="m-id" required readonly></label>
+        <label>名称<input class="input" id="m-name" readonly></label>
+        <label>重量入力 (g)<input class="input" id="m-weight" inputmode="decimal" placeholder="例: 1200"></label>
+        <label>個数入力 (pcs)<input class="input" id="m-count" inputmode="numeric" placeholder="例: 500"></label>
+        <div class="form-actions">
+          <button type="submit" class="btn -primary">OK</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- UI & App logic -->
   <script type="module" src="js/ui.js"></script>
-  <!-- 既存アプリのロジックをこの下で読み込む（必要に応じて） -->
-  <!-- <script type="module" src="js/app.js"></script>
-  <script type="module" src="js/qr_batch.js"></script> -->
+  <script type="module" src="js/sheets.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/scan.js"></script>
 </body>
 </html>
