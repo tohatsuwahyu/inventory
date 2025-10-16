@@ -1,45 +1,69 @@
-// ===== endpoint =====
+// ===== Web App URL =====
 const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
-const TOKEN    = ''; // isi jika pakai API_TOKEN; kosongkan jika tidak pakai
+const TOKEN    = ''; // isi jika pakai API_TOKEN
 
-function _url(params = {}) {
-  const url = new URL(ENDPOINT);
-  if (TOKEN) url.searchParams.set('token', TOKEN);
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-  return url.toString();
+/* ------------ JSONP helper (tanpa CORS) ------------- */
+function jsonp(params = {}) {
+  return new Promise((resolve, reject)=>{
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const url = new URL(ENDPOINT);
+    if (TOKEN) url.searchParams.set('token', TOKEN);
+    Object.entries(params).forEach(([k,v])=> url.searchParams.set(k, String(v)));
+    url.searchParams.set('callback', cb);
+
+    const s = document.createElement('script');
+    s.src = url.toString();
+    s.async = true;
+
+    let finished = false;
+    window[cb] = (data)=>{ finished = true; resolve(data); cleanup(); };
+
+    s.onerror = ()=>{ if (!finished) { reject(new Error('JSONP load error')); cleanup(); } };
+
+    function cleanup(){ delete window[cb]; s.remove(); }
+
+    document.head.appendChild(s);
+  });
 }
 
-async function _post(action, payload = {}) {
-  const res = await fetch(_url(), { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ action, payload }) });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || `POST ${action} failed`);
-  return json;
-}
+function b64(json){ return btoa(unescape(encodeURIComponent(JSON.stringify(json)))); }
 
+/* --------------- API --------------- */
 export async function fetchAll(){
-  const res = await fetch(_url());
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'fetch failed');
-  return json;
+  const j = await jsonp({ action:'pull' });
+  if (!j?.ok) throw new Error(j?.error || 'pull failed');
+  return j; // {inventory, records}
 }
 
-export async function recordInput(payload){ return _post('recordInput', payload); }
-export async function closeMonthAPI(){ return _post('closeMonth'); }
-export async function closeYearAPI(){ return _post('closeYear'); }
-export async function upsertInventory(list){ return _post('upsertInventory', list); }
+export async function recordInput(payload){
+  const j = await jsonp({ action:'recordInput', pb64: b64(payload) });
+  if (!j?.ok) throw new Error(j?.error || 'recordInput failed');
+  return j;
+}
 
-// === NEW: ambil QR (prioritas base64; fallback ke URL) ===
+export async function upsertInventory(list){
+  const j = await jsonp({ action:'upsertInventory', pb64: b64(list) });
+  if (!j?.ok) throw new Error(j?.error || 'upsertInventory failed');
+  return j;
+}
+
+export async function closeMonthAPI(){
+  const j = await jsonp({ action:'closeMonth' });
+  if (!j?.ok) throw new Error(j?.error || 'closeMonth failed');
+  return j;
+}
+
+export async function closeYearAPI(){
+  const j = await jsonp({ action:'closeYear' });
+  if (!j?.ok) throw new Error(j?.error || 'closeYear failed');
+  return j;
+}
+
+// QR (prioritas base64, fallback url)
 export async function getQr({ id, base, size = 320 }){
-  // 1) coba minta base64
-  let res = await fetch(_url({ action:'qrJson', id, base, size: String(size), mode:'b64' }));
-  let j;
-  try { j = await res.json(); } catch { j = { ok:false, error:'json parse failed' }; }
+  let j = await jsonp({ action:'qrJson', id, base, size:String(size), mode:'b64' });
   if (j?.ok && j.pngBase64) return { kind:'b64', data:j.pngBase64 };
-
-  // 2) fallback: minta URL saja (tanpa UrlFetch)
-  res = await fetch(_url({ action:'qrJson', id, base, size: String(size), mode:'url' }));
-  j = await res.json();
-  if (j?.ok && j.pngUrl) return { kind:'url', data:j.pngUrl };
-
+  j = await jsonp({ action:'qrJson', id, base, size:String(size), mode:'url' });
+  if (j?.ok && j.pngUrl)   return { kind:'url', data:j.pngUrl };
   throw new Error(j?.error || 'qrJson failed');
 }
