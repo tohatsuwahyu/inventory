@@ -117,9 +117,9 @@
 
     <!-- Add item -->
     <section class="page" id="item-add" data-page>
-      <h1 class="page-title">品目を追加</h1>
+      <h1 class="page-title">品名を追加</h1>
       <form class="card form-grid" id="form-add">
-        <label>品目ID<input class="input" name="id" required></label>
+        <label>品名ID<input class="input" name="id" required></label>
         <label>名称<input class="input" name="name"></label>
         <label>重量/個 (g)<input class="input" name="unitWeight_g" inputmode="decimal"></label>
         <label>計数モード<select class="select" name="mode"><option value="weight">重量</option><option value="count">個数</option></select></label>
@@ -159,11 +159,41 @@
       </form>
     </div>
   </div>
+<section class="page" id="qr-batch" data-page>
+  <h1 class="page-title">QR一括出力</h1>
+
+  <div class="card">
+    <div class="grid-compact">
+      <label>サイズ(px)
+        <input class="input" id="qr-size" value="600" inputmode="numeric">
+      </label>
+      <label>余白(px)
+        <input class="input" id="qr-margin" value="4" inputmode="numeric">
+      </label>
+      <label style="display:flex;align-items:end;gap:.5rem">
+        <input type="checkbox" id="qr-label" checked> ラベル(名称/ID)を付与
+      </label>
+      <label class="grow">ベースURL
+        <input class="input" id="qr-base" placeholder="https://tohatsuwahyu.github.io/inventory/">
+      </label>
+    </div>
+
+    <div class="row-gap" style="margin-top:10px">
+      <button class="btn -primary" id="btn-qr-gen">生成</button>
+      <button class="btn" id="btn-qr-zip">ZIPでダウンロード</button>
+      <button class="btn -ghost" id="btn-qr-print">印刷用を開く</button>
+    </div>
+
+    <div id="qr-preview" class="qr-preview" style="margin-top:12px"></div>
+  </div>
+</section>
 
   <!-- UI & App logic -->
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/sheets.js"></script>
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/scan.js"></script>
+  <script type="module" src="js/qr_batch_page.js"></script>
+
 </body>
 </html>
