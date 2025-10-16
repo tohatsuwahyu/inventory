@@ -1,6 +1,6 @@
 // ===== Google Apps Script Web App endpoint =====
 // GANTI ke URL Web App kamu (Deploy → Web app → URL)
-const ENDPOINT = 'https://script.google.com/macros/s/AKfycbz3namAdmdRc4qYXl9fBdDRiYE6kZgqRScrofyfHfnw4s6hiOzSLoeiIcFwua-o_ACY1A/exec';
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
 
 // Opsional: kalau kamu set API_TOKEN di Apps Script (Script Properties)
 // ISI di sini sama persis. Kalau tidak pakai token, biarkan ''.
