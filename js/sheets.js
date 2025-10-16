@@ -1,52 +1,47 @@
-// Google Apps Script Web App と通信
-// ↓↓↓ ここを自分のURL/トークンに置換 ↓↓↓
+// ===== Google Apps Script Web App endpoint =====
+// GANTI ke URL Web App kamu (Deploy → Web app → URL)
 const ENDPOINT = 'https://script.google.com/macros/s/AKfycbz3namAdmdRc4qYXl9fBdDRiYE6kZgqRScrofyfHfnw4s6hiOzSLoeiIcFwua-o_ACY1A/exec';
-const TOKEN    = '<<OPTIONAL_API_TOKEN>>';
-// ↑↑↑ ここまで ↑↑↑
 
-function _headers(){
-  const h = { 'Content-Type':'application/json' };
-  if (TOKEN) h['Authorization'] = `Bearer ${TOKEN}`;
-  return h;
+// Opsional: kalau kamu set API_TOKEN di Apps Script (Script Properties)
+// ISI di sini sama persis. Kalau tidak pakai token, biarkan ''.
+const TOKEN = '';
+
+function _url(params = {}) {
+  const url = new URL(ENDPOINT);
+  if (TOKEN) url.searchParams.set('token', TOKEN); // <<< token via query (tidak pakai header)
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  return url.toString();
 }
 
-// 単一品目の入力を即時反映（在庫更新 + records追記）
-export async function recordInput({ id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs }){
-  const res = await fetch(ENDPOINT, {
+// --- Helper POST TANPA preflight (Content-Type simple) ---
+async function _post(action, payload = {}) {
+  const res = await fetch(_url(), {
     method: 'POST',
-    headers: _headers(),
-    body: JSON.stringify({
-      action: 'recordInput',
-      payload: { id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs }
-    })
+    // penting: text/plain agar tidak preflight
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action, payload })
   });
   const json = await res.json();
-  if (!json.ok) throw new Error(json.error||'record failed');
+  if (!json.ok) throw new Error(json.error || `POST ${action} failed`);
   return json;
 }
 
-// 全データ取得
-export async function fetchAll(){
-  const url = new URL(ENDPOINT);
-  if (TOKEN) url.searchParams.set('token', TOKEN);
-  const res = await fetch(url.toString());
+// === API ===
+export async function fetchAll() {
+  // GET sederhana -> tidak ada header custom
+  const res = await fetch(_url());
   const json = await res.json();
-  if (!json.ok) throw new Error(json.error||'fetch failed');
+  if (!json.ok) throw new Error(json.error || 'fetch failed');
   return json; // {inventory, records}
 }
 
-// 月次・年度スナップショット
-export async function closeMonthAPI(){ 
-  const res = await fetch(ENDPOINT, { method:'POST', headers:_headers(), body: JSON.stringify({ action:'closeMonth' })});
-  const j = await res.json(); if(!j.ok) throw new Error(j.error||'closeMonth failed'); return j;
-}
-export async function closeYearAPI(){ 
-  const res = await fetch(ENDPOINT, { method:'POST', headers:_headers(), body: JSON.stringify({ action:'closeYear' })});
-  const j = await res.json(); if(!j.ok) throw new Error(j.error||'closeYear failed'); return j;
+// 1品目入力を即時保存
+export async function recordInput({ id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs }) {
+  return _post('recordInput', { id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs });
 }
 
-// インベントリ上書き/追加（初期投入等）
-export async function upsertInventory(list){
-  const res = await fetch(ENDPOINT, { method:'POST', headers:_headers(), body: JSON.stringify({ action:'upsertInventory', payload: list }) });
-  const j = await res.json(); if(!j.ok) throw new Error(j.error||'upsert failed'); return j;
-}
+export async function closeMonthAPI() { return _post('closeMonth'); }
+export async function closeYearAPI()  { return _post('closeYear');  }
+
+// 初期投入/追加・更新（配列）
+export async function upsertInventory(list) { return _post('upsertInventory', list); }
