@@ -1,47 +1,37 @@
-// ===== Google Apps Script Web App endpoint =====
-// GANTI ke URL Web App kamu (Deploy → Web app → URL)
+// ===== endpoint =====
 const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
-
-// Opsional: kalau kamu set API_TOKEN di Apps Script (Script Properties)
-// ISI di sini sama persis. Kalau tidak pakai token, biarkan ''.
-const TOKEN = '';
+const TOKEN    = ''; // isi jika pakai API_TOKEN; kalau tidak, biarkan ''
 
 function _url(params = {}) {
   const url = new URL(ENDPOINT);
-  if (TOKEN) url.searchParams.set('token', TOKEN); // <<< token via query (tidak pakai header)
+  if (TOKEN) url.searchParams.set('token', TOKEN);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
   return url.toString();
 }
 
-// --- Helper POST TANPA preflight (Content-Type simple) ---
 async function _post(action, payload = {}) {
-  const res = await fetch(_url(), {
-    method: 'POST',
-    // penting: text/plain agar tidak preflight
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action, payload })
-  });
+  const res = await fetch(_url(), { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ action, payload }) });
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || `POST ${action} failed`);
   return json;
 }
 
-// === API ===
-export async function fetchAll() {
-  // GET sederhana -> tidak ada header custom
+export async function fetchAll(){
   const res = await fetch(_url());
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'fetch failed');
-  return json; // {inventory, records}
+  return json;
 }
 
-// 1品目入力を即時保存
-export async function recordInput({ id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs }) {
-  return _post('recordInput', { id, name, unitWeight_g, mode, inputWeight_g, inputCount_pcs, computed_pcs });
+export async function recordInput(payload){ return _post('recordInput', payload); }
+export async function closeMonthAPI(){ return _post('closeMonth'); }
+export async function closeYearAPI(){ return _post('closeYear'); }
+export async function upsertInventory(list){ return _post('upsertInventory', list); }
+
+// NEW: ambil QR PNG (base64) dari Apps Script (tanpa CDN)
+export async function fetchQrPngBase64({ id, base, size = 320 }){
+  const res = await fetch(_url({ action:'qrJson', id, base, size: String(size) }));
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'qrJson failed');
+  return j.pngBase64; // base64 string tanpa prefix
 }
-
-export async function closeMonthAPI() { return _post('closeMonth'); }
-export async function closeYearAPI()  { return _post('closeYear');  }
-
-// 初期投入/追加・更新（配列）
-export async function upsertInventory(list) { return _post('upsertInventory', list); }
