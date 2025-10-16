@@ -8,23 +8,35 @@ const marginEl= document.getElementById('qr-margin');
 const labelEl = document.getElementById('qr-label');
 const baseEl  = document.getElementById('qr-base');
 
-// Tunggu sampai window.QRCode tersedia (karena script CDN non-module)
+// --- Dinamis load QRCode lib dengan fallback ---
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.onload = ()=> resolve();
+    s.onerror = ()=> reject(new Error('load failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
 async function ensureQRCodeReady() {
-  const tryGet = () => (window && window.QRCode) ? window.QRCode : null;
-  let QR = tryGet();
-  const t0 = Date.now();
-  while (!QR) {
-    await new Promise(r => setTimeout(r, 50));
-    QR = tryGet();
-    if (Date.now() - t0 > 3000) break; // 3s timeout
-  }
-  if (!QR) throw new Error('QRライブラリの読み込みに失敗しました（QRCode not found）');
-  return QR;
+  if (window && window.QRCode) return window.QRCode;
+  // coba CDN 1 (jsDelivr)
+  try { await loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'); }
+  catch(_) { /* lanjut fallback */ }
+  if (window && window.QRCode) return window.QRCode;
+  // fallback CDN 2 (unpkg)
+  try { await loadScript('https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'); }
+  catch(e) { /* biarkan cek di bawah */ }
+  if (window && window.QRCode) return window.QRCode;
+
+  throw new Error('QRライブラリの読み込みに失敗しました。（QRCode not found）');
 }
 
+// --- UI helpers ---
 btnOpen.onclick = async () => {
   modal.classList.add('show'); modal.classList.remove('hidden');
-  // set default base URL = current site root
   if (!baseEl.value) baseEl.value = new URL('./', location.href).href.replace(/index\.html?$/,'');
 };
 modal.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { modal.classList.remove('show'); modal.classList.add('hidden'); });
@@ -36,6 +48,7 @@ function buildItemUrl(base, id) {
 }
 function sanitizeName(s){ return String(s||'').replace(/[\\/:*?"<>|]/g,'_'); }
 
+// --- Generate preview ---
 document.getElementById('btn-qr-gen').onclick = async () => {
   preview.innerHTML = '';
   const size   = +sizeEl.value  || 320;
@@ -75,6 +88,7 @@ document.getElementById('btn-qr-gen').onclick = async () => {
   }
 };
 
+// --- ZIP & Print ---
 document.getElementById('btn-qr-zip').onclick = async () => {
   const canv = [...preview.querySelectorAll('canvas')];
   if (!canv.length) return alert('先に生成してください。');
