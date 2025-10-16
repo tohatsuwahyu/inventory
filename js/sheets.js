@@ -1,5 +1,5 @@
 // Default endpoint (fallback) — isi dengan URL Web App kamu agar first-run langsung jalan
-const DEFAULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/execc';
+const DEFAULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
 
 function getEndpoint(){ return localStorage.getItem('ic.endpoint') || DEFAULT_ENDPOINT; }
 function getToken(){ return localStorage.getItem('ic.token') || ''; }
