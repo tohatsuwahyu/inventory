@@ -1,221 +1,100 @@
-import { fmt, calcNewStock, ymKey, yKey, getParamId } from './utils.js';
-import { mountQrScanner } from './qr.js';
-import { recordInput, fetchAll, closeMonthAPI, closeYearAPI, upsertInventory } from './sheets.js';
+import { fetchAll, upsertInventory, recordInput, closeMonth, closeYear } from './sheets.js';
 
-// ローカルキャッシュ
-let INVENTORY = []; // [{id,name,unitWeight_g,mode,lastMonth_pcs,currentWeight_g,currentCount_pcs,yearStart_pcs,updatedAt}]
-let INDEX = new Map();
+const $ = (s, p=document)=> p.querySelector(s);
+const $$ = (s, p=document)=> [...p.querySelectorAll(s)];
 
-// 便利関数
-function findItem(id){ return INDEX.get(id) || null; }
-function nowPcs(of){
-  if (!of) return 0;
-  if (of.mode==='count' && +of.currentCount_pcs>0) return Math.floor(+of.currentCount_pcs);
-  const uw = +of.unitWeight_g||0; const w = +of.currentWeight_g||0;
-  return uw>0 ? Math.floor(w/uw) : 0;
-}
-function annualRemain(of){
-  const ys = +of.yearStart_pcs||0;
-  return ys - nowPcs(of);
-}
+async function loadAndRender(){
+  const { inventory=[], records=[] } = await fetchAll();
 
-// UI要素
-const tbody = document.getElementById('items-body');
-const search = document.getElementById('search');
-const viewMonth = document.getElementById('view-month');
-const viewCols = document.getElementById('view-columns');
+  // KPI
+  const sum = (arr, k)=> arr.reduce((a,b)=> a + (+b[k]||0), 0);
+  $('#kpi-now').textContent    = sum(inventory, 'currentCount_pcs') || '--';
+  $('#kpi-last').textContent   = sum(inventory, 'lastMonth_pcs')    || '--';
+  $('#kpi-annual').textContent = sum(inventory, 'yearStart_pcs') - sum(inventory, 'currentCount_pcs') || '--';
 
-const ic = {
-  wrap:   document.getElementById('input-card'),
-  title:  document.getElementById('ic-title'),
-  sub:    document.getElementById('ic-sub'),
-  w:      document.getElementById('ic-weight'),
-  c:      document.getElementById('ic-count'),
-  ok:     document.getElementById('ic-ok'),
-  cancel: document.getElementById('ic-cancel'),
-  last:   document.getElementById('ic-last'),
-  now:    document.getElementById('ic-now'),
-  annual: document.getElementById('ic-annual'),
-  chart:  null
-};
-
-// レンダリング
-function renderTable(){
-  const q = (search.value||'').toLowerCase();
-  const items = INVENTORY.filter(it => it.id.toLowerCase().includes(q) || (it.name||'').toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
-  tbody.innerHTML = '';
-  for (const it of items){
-    const last = +it.lastMonth_pcs||0;
-    const now  = nowPcs(it);
-    const remain = annualRemain(it);
+  // recent
+  const tb = $('#tbl-recent tbody'); tb.innerHTML = '';
+  records.slice(-10).reverse().forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="px-3 py-2 font-mono text-xs">${it.id}</td>
-      <td class="px-3 py-2">${it.name||''}</td>
-      <td class="px-3 py-2 text-right">${fmt.format(+it.unitWeight_g||0)}</td>
-      <td class="px-3 py-2 text-right">${fmt.format(last)}</td>
-      <td class="px-3 py-2 text-right font-semibold">${fmt.format(now)}</td>
-      <td class="px-3 py-2 text-right">${fmt.format(+it.yearStart_pcs||0)}</td>
-      <td class="px-3 py-2 text-right ${remain<0?'text-red-600':'text-emerald-700'}">${fmt.format(remain)}</td>
-      <td class="px-3 py-2"><button class="px-2 py-1 rounded-lg border" data-input="${it.id}">入力</button></td>`;
-    tbody.appendChild(tr);
-  }
-}
-
-function openInputCard(id){
-  const it = findItem(id);
-  if (!it) return alert(`品目 ${id} は未登録です。先に登録してください。`);
-  ic.title.textContent = `${it.name}（${it.id}）`;
-  ic.sub.textContent   = `重量/個 ${+it.unitWeight_g||0} g ／ モード ${it.mode}`;
-  ic.w.value = +it.currentWeight_g||0;
-  ic.c.value = +it.currentCount_pcs||0;
-  ic.last.textContent   = fmt.format(+it.lastMonth_pcs||0);
-  ic.now.textContent    = fmt.format(nowPcs(it));
-  ic.annual.textContent = fmt.format(annualRemain(it));
-  ic.wrap.classList.add('show'); ic.wrap.classList.remove('hidden');
-
-  // チャート
-  const ctx = document.getElementById('ic-chart');
-  if (ic.chart) { ic.chart.destroy(); ic.chart = null; }
-  ic.chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['先月在庫','現在在庫','年度残数'],
-      datasets: [{ label: it.name || it.id, data: [ +it.lastMonth_pcs||0, nowPcs(it), annualRemain(it) ] }]
-    },
-    options: { responsive: true, plugins:{ legend:{ display:false }}, scales:{ y:{ beginAtZero:true } } }
+    tr.innerHTML = `<td>${r.ts||''}</td><td>${r.id||''}</td><td>${r.method||''}</td>
+      <td>${r.inputWeight_g||''}</td><td>${r.inputCount_pcs||''}</td><td>${r.computed_pcs||''}</td>`;
+    tb.appendChild(tr);
   });
 
-  // OK
-  ic.ok.onclick = async ()=>{
-    const calc = calcNewStock({ mode: it.mode, unitWeight: +it.unitWeight_g||0, inputWeight: +ic.w.value||0, inputCount: +ic.c.value||0 });
-    try{
-      // 即時スプレッドシート反映
-      await recordInput({
-        id: it.id,
-        name: it.name || it.id,
-        unitWeight_g: +it.unitWeight_g||0,
-        mode: it.mode,
-        inputWeight_g: +ic.w.value||0,
-        inputCount_pcs: +ic.c.value||0,
-        computed_pcs: calc.pcs
-      });
-      // 再取得してUI更新
-      await loadAll();
-      openInputCard(it.id); // そのまま更新表示
-      alert('保存しました。');
-    }catch(e){ alert('保存失敗: '+e.message); }
-  };
+  // inventory table
+  const tbody = $('#tbl-inventory tbody'); tbody.innerHTML = '';
+  inventory.forEach(item=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.id||''}</td>
+      <td>${item.name||''}</td>
+      <td>${item.unitWeight_g||''}</td>
+      <td>${item.lastMonth_pcs||0}</td>
+      <td>${item.currentCount_pcs||0}</td>
+      <td>${item.yearStart_pcs||0}</td>
+      <td>${(item.yearStart_pcs||0)-(item.currentCount_pcs||0)}</td>
+      <td><button class="btn -sm" data-input="${item.id}">入力</button></td>`;
+    tbody.appendChild(tr);
+  });
 
-  ic.cancel.onclick = ()=>{
-    ic.w.value = ''; ic.c.value=''; ic.wrap.classList.remove('show'); ic.wrap.classList.add('hidden');
-  };
+  // filter
+  $('#search')?.addEventListener('input', (e)=>{
+    const q = e.target.value.toLowerCase();
+    $$('#tbl-inventory tbody tr').forEach(tr=>{
+      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  // open input modal
+  $$('#tbl-inventory [data-input]').forEach(btn=>{
+    btn.onclick = ()=> openInputModal(btn.dataset.input);
+  });
 }
 
-async function loadAll(){
-  const all = await fetchAll();
-  INVENTORY = Array.isArray(all.inventory) ? all.inventory : [];
-  INDEX = new Map(INVENTORY.map(x=>[x.id, x]));
-  renderTable();
-
-  // URL ?id=... があれば自動で入力カードを開く
-  const pid = getParamId();
-  if (pid) openInputCard(pid);
+function openInputModal(id, name=''){
+  $('#m-id').value = id || '';
+  $('#m-name').value = name || '';
+  $('#m-weight').value = '';
+  $('#m-count').value = '';
+  $('#modal-input').classList.remove('hidden');
 }
-
-// イベント
-document.getElementById('btn-scan').onclick = ()=> mountQrScanner({
-  onDecoded: (text)=>{
-    try{
-      // QRの中身がURLで ?id=XXX を含む場合 → そのURLへ遷移
-      if (/^https?:\/\//i.test(text)) { location.href = text; return; }
-      // それ以外は ID とみなしてクエリにセット
-      const u = new URL(location.href); u.searchParams.set('id', text.trim()); location.href = u.toString();
-    }catch(_){ alert('QR内容を解釈できません。'); }
-  }, onClose: ()=>{}
+$('#m-close')?.addEventListener('click', ()=> $('#modal-input').classList.add('hidden'));
+$('#m-form')?.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const id = $('#m-id').value.trim();
+  const inputWeight_g = +$('#m-weight').value || 0;
+  const inputCount_pcs = +$('#m-count').value  || 0;
+  await recordInput({ id, inputWeight_g, inputCount_pcs, computed_pcs: inputCount_pcs });
+  $('#modal-input').classList.add('hidden');
+  await loadAndRender();
 });
 
-document.getElementById('btn-add').onclick = ()=>{
-  const modal = document.getElementById('modal-item');
-  const form  = document.getElementById('item-form');
-  modal.classList.add('show'); modal.classList.remove('hidden');
-  modal.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
-  function close(){ modal.classList.remove('show'); modal.classList.add('hidden'); }
-
-  form.reset(); form.id.readOnly=false;
-  form.onsubmit = async (e)=>{
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(form).entries());
-    try{
-      await upsertInventory([{
-        id: data.id.trim(),
-        name: data.name.trim(),
-        unitWeight_g: +data.unitWeight||0,
-        mode: data.mode,
-        lastMonth_pcs: 0,
-        currentWeight_g: 0,
-        currentCount_pcs: 0,
-        yearStart_pcs: +data.yearStart||0,
-        updatedAt: new Date().toISOString()
-      }]);
-      await loadAll();
-      close();
-    }catch(e){ alert('登録失敗: '+e.message); }
-  };
-};
-
-document.getElementById('btn-import').onclick = ()=>{
-  const input = document.createElement('input'); input.type='file'; input.accept='.csv,text/csv';
-  input.onchange = async ()=>{
-    const file = input.files?.[0]; if(!file) return;
-    const txt = await file.text();
-    const lines = txt.split(/\r?\n/).filter(Boolean); lines.shift(); // header skip
-    const list = lines.map(line=>{
-      const cells = line.match(/((?:^|,)(?:\"(?:[^\"]|\"\")*\"|[^,]*))/g).map(s=>s.replace(/^,?\"|\"$/g,'').replaceAll('\"\"','\"'));
-      return {
-        id: cells[0], name: cells[1], unitWeight_g: +cells[2]||0, mode: cells[3]||'weight',
-        lastMonth_pcs: +cells[4]||0, currentWeight_g: +cells[5]||0, currentCount_pcs: +cells[6]||0,
-        yearStart_pcs: +cells[7]||0, updatedAt: cells[8]||''
-      };
-    }).filter(r=>r.id);
-    try{ await upsertInventory(list); await loadAll(); alert('インポート完了'); }catch(e){ alert('失敗: '+e.message); }
-  };
-  input.click();
-};
-
-document.getElementById('btn-export').onclick = ()=>{
-  const header = ['id','name','unitWeight_g','mode','lastMonth_pcs','currentWeight_g','currentCount_pcs','yearStart_pcs','updatedAt'];
-  const rows = [header.join(',')].concat(
-    INVENTORY.map(it=> header.map(h=> `"${String(it[h]??'').replaceAll('"','""')}"`).join(',') )
-  );
-  const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob); const a = document.createElement('a');
-  a.href=url; a.download=`inventory-${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-};
-
-const btnSync = document.getElementById('btn-sync');
-const menu = document.getElementById('sync-menu');
-btnSync.onclick = ()=> menu.classList.toggle('hidden');
-
-document.getElementById('btn-sync-pull').onclick = async ()=>{ try{ await loadAll(); alert('シートから読み込みました。'); }catch(e){ alert('読み込み失敗: '+e.message); } };
-document.getElementById('btn-sync-push').onclick = ()=> alert('入力は自動保存です（OK時に即時POST）。');
-
-const btnCloseM = document.getElementById('btn-close-month');
-btnCloseM.onclick = async ()=>{ try{ const j=await closeMonthAPI(); alert(`スナップショット ${j.key} 保存`); await loadAll(); }catch(e){ alert('失敗: '+e.message); } };
-
-const btnCloseY = document.getElementById('btn-close-year');
-btnCloseY.onclick = async ()=>{ try{ const j=await closeYearAPI(); alert(`年度開始在庫 ${j.key} に設定`); await loadAll(); }catch(e){ alert('失敗: '+e.message); } };
-
-tbody.addEventListener('click', (e)=>{
-  const el = e.target.closest('button'); if(!el) return;
-  const id = el.getAttribute('data-input'); if (id) openInputCard(id);
+// add item
+$('#form-add')?.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const obj = Object.fromEntries(fd.entries());
+  obj.unitWeight_g = +obj.unitWeight_g || 0;
+  obj.yearStart_pcs = +obj.yearStart_pcs || 0;
+  await upsertInventory([obj]);
+  e.target.reset();
+  alert('保存しました');
+  location.hash = '#inventory';
+  await loadAndRender();
 });
 
-search.addEventListener('input', renderTable);
-viewMonth.addEventListener('change', ()=>{
-  const showLast = viewMonth.value==='last';
-  document.querySelectorAll('#items-table th:nth-child(4), #items-table td:nth-child(4)').forEach(el=>el.classList.toggle('bg-yellow-50', showLast));
+// close actions
+$('#btnCloseMonth')?.addEventListener('click', async ()=>{
+  if(!confirm('月次締めを実行しますか？')) return;
+  await closeMonth(); await loadAndRender(); alert('完了しました');
+});
+$('#btnCloseYear')?.addEventListener('click', async ()=>{
+  if(!confirm('年度開始在庫に現在在庫を設定します。実行しますか？')) return;
+  await closeYear(); await loadAndRender(); alert('完了しました');
 });
 
-// 初期ロード
-loadAll().catch(e=>alert('初期ロード失敗: '+e.message));
+// expose for scanner
+window.__openInputModal = openInputModal;
+
+// first load
+loadAndRender().catch(err=> alert('初期ロード失敗: '+err.message));
