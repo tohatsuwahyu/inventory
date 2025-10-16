@@ -1,6 +1,6 @@
 // ===== endpoint =====
-const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxvfLTfPzlSxfGGAGj-Hp-SRG-qT4jG2fxNoqLcy1VcW7i1bhIfnqIqw0Htg-RDtLtgGw/exec';
-const TOKEN    = ''; // isi jika pakai API_TOKEN; kalau tidak, biarkan ''
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbz3namAdmdRc4qYXl9fBdDRiYE6kZgqRScrofyfHfnw4s6hiOzSLoeiIcFwua-o_ACY1A/exec';
+const TOKEN    = ''; // isi jika pakai API_TOKEN; kosongkan jika tidak pakai
 
 function _url(params = {}) {
   const url = new URL(ENDPOINT);
@@ -28,10 +28,18 @@ export async function closeMonthAPI(){ return _post('closeMonth'); }
 export async function closeYearAPI(){ return _post('closeYear'); }
 export async function upsertInventory(list){ return _post('upsertInventory', list); }
 
-// NEW: ambil QR PNG (base64) dari Apps Script (tanpa CDN)
-export async function fetchQrPngBase64({ id, base, size = 320 }){
-  const res = await fetch(_url({ action:'qrJson', id, base, size: String(size) }));
-  const j = await res.json();
-  if (!j.ok) throw new Error(j.error || 'qrJson failed');
-  return j.pngBase64; // base64 string tanpa prefix
+// === NEW: ambil QR (prioritas base64; fallback ke URL) ===
+export async function getQr({ id, base, size = 320 }){
+  // 1) coba minta base64
+  let res = await fetch(_url({ action:'qrJson', id, base, size: String(size), mode:'b64' }));
+  let j;
+  try { j = await res.json(); } catch { j = { ok:false, error:'json parse failed' }; }
+  if (j?.ok && j.pngBase64) return { kind:'b64', data:j.pngBase64 };
+
+  // 2) fallback: minta URL saja (tanpa UrlFetch)
+  res = await fetch(_url({ action:'qrJson', id, base, size: String(size), mode:'url' }));
+  j = await res.json();
+  if (j?.ok && j.pngUrl) return { kind:'url', data:j.pngUrl };
+
+  throw new Error(j?.error || 'qrJson failed');
 }
