@@ -136,3 +136,13 @@ body{
 .muted{ color:var(--muted); font-size:.92rem }
 .fade-in{ animation:fade .2s ease both }
 @keyframes fade{ from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+/* ---- Modal ---- */
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:grid; place-items:center; z-index:60 }
+.modal.hidden{ display:none }
+.modal-card{ width:min(680px,92vw); background:#fff; border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); }
+.modal-head{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid var(--border) }
+.modal-title{ font-weight:800; color:var(--navy) }
+#qr-mount{ min-height:320px; display:grid; place-items:center; border:1px dashed var(--border); background:#fff; margin:12px }
+
+/* Smooth page animation already defined */
+
