@@ -1,0 +1,13 @@
+/* Scrollbar halus (Chrome/Edge) */
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+
+/***** Table *****/
+#items-table td, #items-table th { border-bottom: 1px solid #e2e8f0; }
+#items-table tbody tr:hover { background: #f8fafc; }
+
+
+/***** Modal helpers *****/
+#modal-scan.show, #modal-item.show { display: grid; }
